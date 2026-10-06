@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventario RedSalud</title>
+<style>
+  :root { --azul:#1F6F8B; --fondo:#f4f7f9; --borde:#d5dee4; --rojo:#b3261e; --verde:#1e7d3a; --ambar:#a15c00; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--fondo); color:#1b1f23; font-size:16px; }
+  header { background:var(--azul); color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; }
+  header b { font-size:18px; } header small { opacity:.85; font-size:12px; }
+  main { padding:12px 16px 90px; max-width:720px; margin:0 auto; }
+  nav { position:fixed; bottom:0; left:0; right:0; display:flex; background:#fff; border-top:1px solid var(--borde); z-index:5; }
+  nav button { flex:1; border:0; background:none; padding:14px 0; font-size:15px; color:#555; }
+  nav button.activo { color:var(--azul); font-weight:600; }
+  input, select, textarea { width:100%; padding:11px; font-size:16px; border:1px solid var(--borde); border-radius:8px; background:#fff; }
+  label { display:block; font-size:13px; color:#555; margin:10px 0 4px; }
+  h3 { margin:6px 0 4px; }
+  .btn { display:block; width:100%; padding:14px; margin-top:10px; border:0; border-radius:8px; font-size:16px; font-weight:600; background:var(--azul); color:#fff; }
+  .btn:disabled { opacity:.5; }
+  .btn.sec { background:#fff; color:var(--azul); border:1px solid var(--azul); }
+  .btn.peligro { background:#fff; color:var(--rojo); border:1px solid var(--rojo); }
+  .btn.chico { display:inline-block; width:auto; padding:8px 12px; margin:0; font-size:14px; }
+  .tarjeta { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:12px; margin-top:10px; }
+  .item { cursor:pointer; }
+  .codigo { font-family:ui-monospace,Menlo,monospace; font-weight:700; color:var(--azul); }
+  .chip { display:inline-block; font-size:12px; padding:2px 8px; border-radius:10px; background:#e8f1f5; margin-left:6px; }
+  .chip.st-baja { background:#fde7e6; color:var(--rojo); } .chip.st-rep { background:#fff1dc; color:var(--ambar); } .chip.st-noop { background:#ececec; color:#444; }
+  #lector video { border-radius:8px; } .btn-archivo { text-align:center; cursor:pointer; }
+  .gris { color:#666; font-size:14px; }
+  .fila { display:flex; gap:8px; } .fila > * { flex:1; min-width:0; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  dl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:8px 0 0; font-size:15px; }
+  dt { color:#666; } dd { margin:0; }
+  #aviso { position:fixed; top:12px; left:16px; right:16px; padding:12px; border-radius:8px; color:#fff; display:none; z-index:20; text-align:center; }
+  .oculto { display:none !important; }
+  /* Inicio */
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
+  @media (min-width:560px) { .kpis { grid-template-columns:repeat(6,1fr); } }
+  .kpi { background:#fff; border:1px solid var(--borde); border-radius:8px; padding:8px 4px; text-align:center; cursor:pointer; }
+  .kpi b { display:block; font-size:20px; } .kpi span { font-size:11px; color:#555; }
+  .kpi.sel { border-color:var(--azul); box-shadow:0 0 0 2px var(--azul) inset; }
+  .barra { display:flex; align-items:center; gap:8px; font-size:13px; margin:3px 0; cursor:pointer; }
+  .barra .et { width:44px; color:#555; } .barra .fondo { flex:1; background:#e8f1f5; border-radius:4px; height:14px; }
+  .barra .lleno { background:var(--azul); height:14px; border-radius:4px; } .barra .n { width:34px; text-align:right; }
+  .filtros-activos { font-size:13px; color:var(--azul); margin-top:6px; }
+  /* Modal */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10; display:flex; align-items:flex-end; justify-content:center; }
+  .modal .caja { background:#fff; width:100%; max-width:720px; max-height:92vh; overflow:auto; border-radius:14px 14px 0 0; padding:16px; }
+  /* Lote */
+  .contador { font-size:28px; font-weight:800; color:var(--azul); }
+  #l-entrada { font-size:20px; padding:16px; border:2px solid var(--azul); }
+  .ok { color:var(--verde); } .mal { color:var(--rojo); }
+  #etiqueta { background:#fff; border:2px solid #000; border-radius:6px; padding:10px; display:flex; gap:12px; align-items:center; width:fit-content; margin:12px auto; }
+  #etiqueta .txt { font-family:ui-monospace,Menlo,monospace; } #etiqueta .c1 { font-size:20px; font-weight:800; } #etiqueta .c2 { font-size:16px; margin-top:4px; }
+  @media print { header, nav, .noimprimir { display:none !important; } main { padding:0; } body { background:#fff; } }
+</style>
+</head>
+<body>
+<header>
+  <div><b>Inventario RedSalud</b><br><small id="h-correo"></small></div>
+  <button class="btn sec chico oculto" id="h-salir" onclick="salir()" style="background:transparent;color:#fff;border-color:#fff">Salir</button>
+</header>
+
+<main>
+  <!-- LOGIN: se entra con un código que llega al correo de trabajo -->
+  <section id="v-login" class="oculto">
+    <div class="tarjeta">
+      <h3>Entrar</h3>
+      <p class="gris">Escribe tu correo de trabajo. Te llegará un código de 6 números.</p>
+      <label>Correo</label><input id="lg-correo" type="email" autocomplete="email" placeholder="nombre@redsalud.cl">
+      <button class="btn" id="lg-pedir">Enviarme el código</button>
+      <div id="lg-paso2" class="oculto">
+        <label>Código que te llegó al correo</label>
+        <input id="lg-codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456">
+        <button class="btn" id="lg-entrar">Entrar</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="app" class="oculto">
+
+  <!-- INICIO: resumen + filtros combinados -->
+  <section id="v-inicio">
+    <div class="fila" style="align-items:center">
+      <h3>Resumen</h3>
+      <div style="text-align:right;flex:0 0 auto"><button class="btn sec chico" onclick="cargarTodo(true)">↻ Actualizar</button></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="tarjeta">
+      <div class="fila">
+        <div><label>Área</label><select id="fi-area"></select></div>
+        <div><label>Tipo</label><select id="fi-tipo"></select></div>
+      </div>
+      <div class="grid3">
+        <div><label>Piso</label><select id="fi-piso"></select></div>
+        <div><label>Unidad</label><select id="fi-unidad"></select></div>
+        <div><label>Estado</label><select id="fi-estado"></select></div>
+      </div>
+      <label>Texto (marca, modelo, serie, ubicación...)</label>
+      <input id="fi-texto" type="search" autocomplete="off">
+      <div class="fila" style="align-items:center;margin-top:8px">
+        <div class="filtros-activos" id="fi-resumen"></div>
+        <div style="flex:0 0 auto"><button class="btn sec chico" onclick="limpiarFiltros()">Limpiar</button></div>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <div class="fila"><div><b>Por piso</b><div id="g-piso"></div></div><div><b>Por área</b><div id="g-area"></div></div></div>
+    </div>
+
+    <div id="lista"></div>
+    <button class="btn sec oculto" id="ver-mas" onclick="pintarLista(true)">Ver más</button>
+  </section>
+
+  <!-- DETALLE -->
+  <section id="v-detalle" class="oculto"></section>
+
+  <!-- EDITAR -->
+  <section id="v-form" class="oculto">
+    <h3 id="f-titulo">Editar</h3>
+    <div class="fila">
+      <div><label>Marca</label><input id="f-Marca"></div>
+      <div><label>Modelo</label><input id="f-Modelo"></div>
+    </div>
+    <label>N° serie</label><input id="f-N° serie">
+    <div class="fila">
+      <div><label>Piso</label><select id="f-Piso"></select></div>
+      <div><label>Unidad</label><select id="f-Unidad"></select></div>
+    </div>
+    <label>Ubicación exacta</label><input id="f-Ubicación exacta" placeholder="Ej: Box 12, mesón 2">
+    <label>Asignado a</label><input id="f-Asignado a" placeholder="Persona o servicio (opcional)">
+    <label>Estado</label><select id="f-Estado"></select>
+    <label>Observaciones</label><textarea id="f-Observaciones" rows="2"></textarea>
+    <button class="btn" id="f-guardar">Guardar cambios</button>
+    <button class="btn sec" onclick="abrir(actual['Código'])">Cancelar</button>
+  </section>
+
+  <!-- REGISTRO EN LOTE -->
+  <section id="v-lote" class="oculto">
+    <div class="fila" style="align-items:center">
+      <div><span class="gris">Registrando</span><h3 id="l-titulo"></h3></div>
+      <div style="flex:0 0 auto;text-align:right"><div class="contador" id="l-contador"></div></div>
+    </div>
+    <p class="gris" id="l-comunes"></p>
+    <div id="l-camara" class="oculto" style="margin-top:10px"><div id="lector"></div></div>
+
+    <label>Escanea o escribe el N° de serie y presiona Enter</label>
+    <input id="l-entrada" autocomplete="off" autocapitalize="characters" enterkeyhint="done">
+    <label>Ubicación exacta (se mantiene para los siguientes)</label>
+    <input id="l-ubic" placeholder="Ej: Box 12">
+    <button class="btn" id="l-guardar">Guardar este</button>
+    <div class="fila">
+      <button class="btn sec" id="l-cam" onclick="alternarCamara()">📷 Usar cámara</button>
+    </div>
+    <p id="l-estado" class="gris"></p>
+
+    <div class="tarjeta"><b>Registrados en este lote</b><div id="l-hechos"><p class="gris">Aún ninguno.</p></div></div>
+    <button class="btn peligro" onclick="terminarLote()">Terminar</button>
+  </section>
+
+  <!-- ETIQUETA -->
+  <section id="v-etiqueta" class="oculto">
+    <div id="etiqueta"><div id="qr"></div><div class="txt"><div class="c1" id="e1"></div><div class="c2" id="e2"></div></div></div>
+    <p class="gris noimprimir" style="text-align:center">El QR abre este equipo en la app.</p>
+    <button class="btn noimprimir" onclick="window.print()">Imprimir</button>
+    <button class="btn sec noimprimir" onclick="abrir(actual['Código'])">Volver al equipo</button>
+  </section>
+
+  <!-- POPUP NUEVO -->
+  <div class="modal oculto" id="m-nuevo">
+    <div class="caja">
+      <h3>¿Qué vas a registrar?</h3>
+      <div class="fila">
+        <div><label>Área</label><select id="n-area"></select></div>
+        <div><label>Tipo</label><select id="n-tipo"></select></div>
+      </div>
+      <label>¿Cuántos? (déjalo vacío si no sabes)</label>
+      <input id="n-cantidad" type="number" min="1" inputmode="numeric" placeholder="Ej: 10">
+      <p class="gris" style="margin:12px 0 0">Datos que comparten todos (los puedes dejar vacíos):</p>
+      <div class="fila">
+        <div><label>Marca</label><input id="n-Marca"></div>
+        <div><label>Modelo</label><input id="n-Modelo"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Piso</label><select id="n-Piso"></select></div>
+        <div><label>Unidad</label><select id="n-Unidad"></select></div>
+        <div><label>Estado</label><select id="n-Estado"></select></div>
+      </div>
+      <label>Asignado a</label><input id="n-Asignado a">
+      <label>Observaciones</label><input id="n-Observaciones">
+      <button class="btn" onclick="comenzarLote()">Comenzar registro</button>
+      <button class="btn sec" onclick="cerrarNuevo()">Cancelar</button>
+    </div>
+  </div>
+  </div>
+</main>
+
+<nav id="nav" class="oculto">
+  <button id="nb-inicio" class="activo" onclick="mostrar('inicio')">🏠 Inicio</button>
+  <button id="nb-nuevo" onclick="abrirNuevo()">＋ Nuevo</button>
+</nav>
+<div id="aviso"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+/* ===== CONFIGURACIÓN: pega aquí la URL de la implementación "API" de Apps Script (termina en /exec) ===== */
+const API_URL = 'PEGA_AQUI_LA_URL_DE_LA_API';
+
+const ID_INICIAL = new URLSearchParams(location.search).get('id') || '';
+const DATOS_INICIALES = null;
+let SESION = null;
+try { SESION = JSON.parse(localStorage.getItem('inv_sesion') || 'null'); } catch (e) {}
+const EDITABLES = ['Marca','Modelo','N° serie','Piso','Unidad','Ubicación exacta','Asignado a','Estado','Observaciones'];
+const PAGINA = 50;
+let INI = null, LISTO = false, TODO = [], FILTRADOS = [], mostrados = 0, actual = null, LOTE = null;
+
+const $ = id => document.getElementById(id);
+// Cualquier error inesperado se muestra en pantalla en vez de quedar oculto.
+window.addEventListener('error', e => aviso('Error: ' + e.message, true));
+window.addEventListener('unhandledrejection', e => { const m = e.reason && e.reason.message; if (m) aviso('Error: ' + m, true); });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const claseEstado = e => ({ 'De baja': 'st-baja', 'En reparación': 'st-rep', 'No operativo': 'st-noop' })[e] || '';
+
+function aviso(texto, error) {
+  const a = $('aviso'); a.textContent = texto; a.style.background = error ? 'var(--rojo)' : 'var(--verde)';
+  a.style.display = 'block'; clearTimeout(a._t); a._t = setTimeout(() => a.style.display = 'none', error ? 9000 : 3500);
+}
+// Llama a una función de Código.gs a través de la API.
+async function llamar(fn, ...args) {
+  let r;
+  try {
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: fn, args: args, token: SESION && SESION.token }) });
+    r = await resp.json();
+  } catch (e) {
+    const err = new Error('No hay conexión con Google (' + e.message + '). Revisa internet y la URL de la API.');
+    aviso(err.message, true); throw err;
+  }
+  if (r.sesion === false) { olvidarSesion(); mostrarLogin(); }
+  if (!r.ok) { aviso(r.error, true); throw new Error(r.error); }
+  return r.data;
+}
+function mostrar(v) {
+  ['inicio','detalle','form','lote','etiqueta'].forEach(x => $('v-' + x).classList.toggle('oculto', x !== v));
+  $('nb-inicio').classList.toggle('activo', v === 'inicio');
+  $('nb-nuevo').classList.toggle('activo', v === 'lote');
+  window.scrollTo(0, 0);
+}
+function opciones(sel, lista, valor, todos) {
+  sel.innerHTML = (todos ? `<option value="">${esc(todos)}</option>` : '') +
+    lista.map(o => `<option value="${esc(o.v)}"${o.v === valor ? ' selected' : ''}>${esc(o.t)}</option>`).join('');
+}
+// Catálogo de siglas. Si por algún motivo no llegó desde Google, se arma con los datos del inventario
+// para que la pantalla funcione igual.
+const ESTADOS_BASE = ['Operativo', 'No operativo', 'En reparación', 'En bodega', 'De baja'];
+const PISOS_BASE = ['S1', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
+function CAT() {
+  const i = INI || {};
+  const unicos = (campo) => [...new Set(TODO.map(o => o[campo]).filter(Boolean))];
+  const tiposDatos = [];
+  TODO.forEach(o => { if (o['Sigla tipo'] && !tiposDatos.some(t => t.area === o['Área'] && t.sigla === o['Sigla tipo']))
+    tiposDatos.push({ area: o['Área'], sigla: o['Sigla tipo'], nombre: o['Descripción tipo'] || o['Sigla tipo'] }); });
+  return {
+    areas: (i.areas && i.areas.length) ? i.areas : unicos('Área').map(a => ({ sigla: a, nombre: a })),
+    tipos: (i.tipos && i.tipos.length) ? i.tipos : tiposDatos,
+    unidades: (i.unidades && i.unidades.length) ? i.unidades : unicos('Unidad').map(u => ({ sigla: u, nombre: u })),
+    pisos: (i.pisos && i.pisos.length) ? i.pisos : PISOS_BASE,
+    // Los estados de la hoja Listas, más los básicos que falten (así "No operativo" aparece siempre).
+    estados: [...new Set([...(i.estados || []), ...ESTADOS_BASE])]
+      .sort((x, y) => (ESTADOS_BASE.indexOf(x) + 1 || 99) - (ESTADOS_BASE.indexOf(y) + 1 || 99)),
+    url: i.url || '',
+  };
+}
+const optAreas = () => CAT().areas.map(a => ({ v: a.sigla, t: a.sigla + ' · ' + a.nombre }));
+const optTipos = area => CAT().tipos.filter(t => !area || t.area === area).map(t => ({ v: t.sigla, t: t.sigla + ' · ' + t.nombre }));
+const optPisos = () => CAT().pisos.map(p => ({ v: p, t: p === 'S1' ? 'S1 (subt.)' : p }));
+const optUnidades = () => CAT().unidades.map(u => ({ v: u.sigla, t: u.sigla + ' · ' + u.nombre }));
+const optEstados = () => CAT().estados.map(e => ({ v: e, t: e }));
+
+/* ================= INICIO ================= */
+// forzar = true lee la planilla directo (botón Actualizar); si no, Google entrega la copia en caché.
+async function cargarTodo(forzar) {
+  $('lista').innerHTML = '<p class="gris">Cargando inventario...</p>';
+  // Si Google no responde en 40 segundos, se avisa en vez de quedar cargando para siempre.
+  const espera = setTimeout(() => errorCarga('Google no respondió a tiempo.'), 40000);
+  try {
+    const txt = await llamar('listarTodo', !!forzar);
+    const datos = typeof txt === 'string' ? JSON.parse(txt) : txt;
+    if (!Array.isArray(datos)) throw new Error('La respuesta llegó vacía (' + typeof txt + ').');
+    TODO = datos;
+    if (!LISTO) { prepararFiltros(); LISTO = true; }
+    filtrar();
+    if (forzar) aviso('Datos actualizados: ' + TODO.length + ' equipos');
+  } catch (e) {
+    errorCarga(e && e.message ? e.message : String(e));
+  } finally {
+    clearTimeout(espera);
+  }
+}
+function errorCarga(msg) {
+  $('lista').innerHTML = `<div class="tarjeta" style="border-color:var(--rojo)">
+    <b class="mal">No se pudo cargar el inventario</b>
+    <p class="gris">${esc(msg)}</p>
+    <p class="gris">Si se repite, manda una foto de este mensaje.</p>
+    <button class="btn sec" onclick="LISTO ? cargarTodo(true) : iniciar()">Reintentar</button></div>`;
+}
+function prepararFiltros() {
+  opciones($('fi-area'), optAreas(), '', 'Todas');
+  opciones($('fi-tipo'), optTipos(''), '', 'Todos');
+  opciones($('fi-piso'), optPisos(), '', 'Todos');
+  opciones($('fi-unidad'), optUnidades(), '', 'Todas');
+  opciones($('fi-estado'), optEstados(), '', 'Todos');
+  $('fi-area').addEventListener('change', () => { opciones($('fi-tipo'), optTipos($('fi-area').value), '', 'Todos'); filtrar(); });
+  ['fi-tipo','fi-piso','fi-unidad','fi-estado'].forEach(id => $(id).addEventListener('change', filtrar));
+  let t; $('fi-texto').addEventListener('input', () => { clearTimeout(t); t = setTimeout(filtrar, 250); });
+}
+function limpiarFiltros() {
+  ['fi-area','fi-piso','fi-unidad','fi-estado','fi-texto'].forEach(id => $(id).value = '');
+  opciones($('fi-tipo'), optTipos(''), '', 'Todos');
+  filtrar();
+}
+function filtroPor(id, valor) {  // tocar un KPI o una barra aplica ese filtro
+  if (id === 'fi-estado' || id === 'fi-piso') $(id).value = $(id).value === valor ? '' : valor;
+  if (id === 'fi-area') { $(id).value = $(id).value === valor ? '' : valor; opciones($('fi-tipo'), optTipos($(id).value), '', 'Todos'); }
+  filtrar();
+}
+function filtrar() {
+  const f = { 'Área': $('fi-area').value, 'Sigla tipo': $('fi-tipo').value, 'Piso': $('fi-piso').value, 'Unidad': $('fi-unidad').value };
+  const estado = $('fi-estado').value;
+  const palabras = $('fi-texto').value.toLowerCase().split(/\s+/).filter(String);
+  // Para los KPI se aplican todos los filtros menos el de estado (así se ve el reparto por estado).
+  const sinEstado = TODO.filter(o => Object.keys(f).every(k => !f[k] || o[k] === f[k]) &&
+    palabras.every(p => [o['Código'],o['Descripción tipo'],o['Marca'],o['Modelo'],o['N° serie'],o['Ubicación exacta'],o['Asignado a'],o['Observaciones']]
+      .join(' ').toLowerCase().indexOf(p) >= 0));
+  FILTRADOS = estado ? sinEstado.filter(o => o['Estado'] === estado) : sinEstado;
+
+  const cuenta = (lista, campo) => lista.reduce((m, o) => (m[o[campo]] = (m[o[campo]] || 0) + 1, m), {});
+  const porEstado = cuenta(sinEstado, 'Estado');
+  $('kpis').innerHTML = `<div class="kpi${estado ? '' : ' sel'}" onclick="filtroPor('fi-estado','${esc(estado)}')"><b>${sinEstado.length}</b><span>Total</span></div>` +
+    CAT().estados.map(e => `<div class="kpi${estado === e ? ' sel' : ''}" onclick="filtroPor('fi-estado','${esc(e)}')"><b>${porEstado[e] || 0}</b><span>${esc(e)}</span></div>`).join('');
+
+  barras('g-piso', cuenta(FILTRADOS, 'Piso'), CAT().pisos, 'fi-piso');
+  barras('g-area', cuenta(FILTRADOS, 'Área'), CAT().areas.map(a => a.sigla), 'fi-area');
+
+  const activos = [['Área', f['Área']], ['Tipo', f['Sigla tipo']], ['Piso', f['Piso']], ['Unidad', f['Unidad']], ['Estado', estado], ['Texto', $('fi-texto').value]]
+    .filter(x => x[1]).map(x => x[0] + ': ' + x[1]);
+  $('fi-resumen').textContent = (activos.length ? activos.join(' · ') + ' → ' : '') + FILTRADOS.length + ' equipos';
+  pintarLista(false);
+}
+function barras(id, conteo, orden, filtro) {
+  const max = Math.max(1, ...Object.values(conteo));
+  $(id).innerHTML = orden.filter(k => conteo[k]).map(k => `
+    <div class="barra" onclick="filtroPor('${filtro}','${esc(k)}')"><span class="et">${esc(k)}</span>
+      <span class="fondo"><span class="lleno" style="display:block;width:${Math.round(conteo[k] / max * 100)}%"></span></span>
+      <span class="n">${conteo[k]}</span></div>`).join('') || '<p class="gris">—</p>';
+}
+function pintarLista(mas) {
+  mostrados = mas ? mostrados + PAGINA : PAGINA;
+  const html = FILTRADOS.slice(0, mostrados).map(tarjetaEquipo).join('');
+  $('lista').innerHTML = html || '<p class="gris">No hay equipos con esos filtros.</p>';
+  $('ver-mas').classList.toggle('oculto', mostrados >= FILTRADOS.length);
+  $('ver-mas').textContent = 'Ver más (' + (FILTRADOS.length - mostrados) + ' restantes)';
+}
+function tarjetaEquipo(o) {
+  return `<div class="tarjeta item" onclick="abrir('${esc(o['Código'])}')">
+    <span class="codigo">${esc(o['Código'])}</span><span class="chip ${claseEstado(o['Estado'])}">${esc(o['Estado'])}</span><br>
+    ${esc(o['Descripción tipo'])} ${esc(o['Marca'])} ${esc(o['Modelo'])}<br>
+    <span class="gris">${esc(o['Piso'])} · ${esc(o['Unidad'])} · ${esc(o['Ubicación exacta'])}</span></div>`;
+}
+
+/* ================= DETALLE / EDITAR ================= */
+async function abrir(codigo) {
+  const o = await llamar('obtenerEquipo', codigo);
+  if (!o) { aviso('No existe el equipo ' + codigo, true); mostrar('inicio'); return; }
+  actual = o; pintarDetalle(); mostrar('detalle');
+}
+function pintarDetalle() {
+  const o = actual, baja = o['Estado'] === 'De baja';
+  const campos = ['Descripción tipo','Marca','Modelo','N° serie','Piso','Unidad','Ubicación exacta','Asignado a','Estado','Fecha última revisión','Revisado por','Observaciones'];
+  $('v-detalle').innerHTML = `
+    <div class="tarjeta">
+      <span class="codigo" style="font-size:22px">${esc(o['Código'])}</span>
+      <dl>${campos.map(c => `<dt>${esc(c)}</dt><dd>${esc(o[c]) || '<span class="gris">—</span>'}</dd>`).join('')}</dl>
+    </div>
+    ${baja ? '' : '<button class="btn" onclick="revisado()">✓ Lo vi aquí (marcar revisado)</button>'}
+    <button class="btn sec" onclick="editar()">Editar / mover</button>
+    <button class="btn sec" onclick="verEtiqueta()">Etiqueta QR</button>
+    ${baja ? '' : '<button class="btn peligro" onclick="darDeBaja()">Dar de baja</button>'}
+    <div class="tarjeta"><b>Últimos movimientos</b>
+      ${o.movimientos.length ? o.movimientos.map(m => `<p class="gris">${esc(m.fecha)} · <b>${esc(m.accion)}</b> · ${esc(m.usuario)}<br>${esc(m.detalle)}</p>`).join('') : '<p class="gris">Sin movimientos aún.</p>'}
+    </div>`;
+}
+function reemplazarEnTodo(o) { const i = TODO.findIndex(x => x['Código'] === o['Código']); if (i >= 0) TODO[i] = o; filtrar(); }
+async function revisado() {
+  actual = await llamar('actualizarEquipo', actual['Código'], {});
+  reemplazarEnTodo(actual); pintarDetalle(); aviso('Marcado como revisado');
+}
+async function darDeBaja() {
+  const motivo = prompt('¿Por qué se da de baja ' + actual['Código'] + '? (ej: dañado, obsoleto, devuelto)');
+  if (motivo === null) return;
+  actual = await llamar('actualizarEquipo', actual['Código'], { 'Estado': 'De baja', motivo: motivo });
+  reemplazarEnTodo(actual); pintarDetalle(); aviso('Equipo dado de baja');
+}
+function editar() {
+  $('f-titulo').textContent = 'Editar ' + actual['Código'];
+  opciones($('f-Piso'), optPisos(), actual['Piso']);
+  opciones($('f-Unidad'), optUnidades(), actual['Unidad']);
+  opciones($('f-Estado'), optEstados(), actual['Estado']);
+  EDITABLES.forEach(n => { const el = $('f-' + n); if (el.tagName !== 'SELECT') el.value = actual[n] || ''; });
+  mostrar('form');
+}
+async function guardarEdicion() {
+  const datos = {}; EDITABLES.forEach(n => datos[n] = $('f-' + n).value);
+  const b = $('f-guardar'); b.disabled = true;
+  try {
+    actual = await llamar('actualizarEquipo', actual['Código'], datos);
+    reemplazarEnTodo(actual); pintarDetalle(); mostrar('detalle'); aviso('Cambios guardados');
+  } finally { b.disabled = false; }
+}
+
+/* ================= NUEVO EN LOTE ================= */
+function abrirNuevo() {
+  if (LOTE) { mostrar('lote'); return; }      // ya hay un lote abierto
+  opciones($('n-area'), optAreas());
+  opciones($('n-tipo'), optTipos($('n-area').value));
+  opciones($('n-Piso'), optPisos(), '', '—');
+  opciones($('n-Unidad'), optUnidades(), '', '—');
+  opciones($('n-Estado'), optEstados(), 'Operativo');
+  ['n-cantidad','n-Marca','n-Modelo','n-Asignado a','n-Observaciones'].forEach(id => $(id).value = '');
+  $('m-nuevo').classList.remove('oculto');
+}
+function cerrarNuevo() { $('m-nuevo').classList.add('oculto'); }
+function comenzarLote() {
+  const area = $('n-area').value, tipo = $('n-tipo').value;
+  const t = CAT().tipos.find(x => x.area === area && x.sigla === tipo);
+  const comunes = {};
+  ['Marca','Modelo','Piso','Unidad','Estado','Asignado a','Observaciones'].forEach(n => { const v = $('n-' + n).value.trim(); if (v) comunes[n] = v; });
+  const cant = parseInt($('n-cantidad').value, 10);
+  LOTE = { area, tipo, nombre: t ? t.nombre : tipo, cantidad: cant > 0 ? cant : 0, comunes, hechos: [], vistos: new Set(), ocupado: false };
+  cerrarNuevo();
+  $('l-titulo').textContent = area + '-' + tipo + ' · ' + LOTE.nombre;
+  $('l-comunes').textContent = Object.keys(comunes).map(k => k + ': ' + comunes[k]).join(' · ') || 'Sin datos comunes';
+  $('l-hechos').innerHTML = '<p class="gris">Aún ninguno.</p>';
+  $('l-estado').textContent = ''; $('l-entrada').value = ''; $('l-ubic').value = '';
+  pintarContador(); mostrar('lote');
+  if (!CAM) alternarCamara();   // la cámara se abre sola al empezar el registro
+}
+function pintarContador() {
+  const n = LOTE.hechos.length;
+  $('l-contador').textContent = LOTE.cantidad ? n + ' / ' + LOTE.cantidad : String(n);
+  const completo = LOTE.cantidad && n >= LOTE.cantidad;
+  $('l-entrada').disabled = $('l-guardar').disabled = !!completo;
+  if (completo) $('l-estado').innerHTML = '<b class="ok">Lote completo ✓</b> Toca Terminar.';
+}
+// La llama el lector de la cámara (o Enter en el campo): recibe el texto leído.
+async function registrarEscaneo(valor) {
+  valor = String(valor || '').trim();
+  if (!LOTE || LOTE.ocupado) return;
+  if (!valor) { $('l-entrada').focus(); return; }
+  if (LOTE.vistos.has(valor.toUpperCase())) { $('l-estado').innerHTML = '<span class="gris">' + esc(valor) + ' ya quedó registrado. Apunta al siguiente.</span>'; return; }
+  LOTE.ocupado = true; $('l-guardar').disabled = true; $('l-estado').textContent = 'Guardando ' + valor + '...';
+  try {
+    const datos = Object.assign({}, LOTE.comunes, { 'Área': LOTE.area, 'Sigla tipo': LOTE.tipo, 'N° serie': valor, 'Ubicación exacta': $('l-ubic').value.trim() });
+    const r = await llamar('crearEquipo', datos);
+    if (r.serieRepetida) {
+      $('l-estado').innerHTML = '<span class="mal">La serie ' + esc(valor) + ' ya existe como ' + esc(r.serieRepetida) + '. No se registró.</span>';
+    } else {
+      LOTE.vistos.add(valor.toUpperCase());
+      LOTE.hechos.unshift({ codigo: r.codigo, serie: valor });
+      $('l-hechos').innerHTML = LOTE.hechos.map(h => `<p><span class="codigo">${esc(h.codigo)}</span> <span class="gris">serie ${esc(h.serie)}</span></p>`).join('');
+      $('l-estado').innerHTML = '<span class="ok">✓ ' + esc(r.codigo) + ' registrado</span>';
+      if (navigator.vibrate) navigator.vibrate(80);
+    }
+    $('l-entrada').value = '';
+  } catch (e) { $('l-estado').textContent = ''; }
+  // Pausa corta para que un escaneo doble no registre dos veces.
+  setTimeout(() => { LOTE && (LOTE.ocupado = false); pintarContador(); if (LOTE && !$('l-entrada').disabled) $('l-entrada').focus(); }, 1200);
+}
+function terminarLote() {
+  if (!LOTE) { detenerCamara(); return mostrar('inicio'); }
+  const n = LOTE.hechos.length;
+  if (LOTE.cantidad && n < LOTE.cantidad && !confirm('Llevas ' + n + ' de ' + LOTE.cantidad + '. ¿Terminar igual?')) return;
+  detenerCamara();
+  LOTE = null; aviso(n + ' equipos registrados'); mostrar('inicio'); cargarTodo();
+}
+
+/* ================= CÁMARA (QR y códigos de barra) ================= */
+let CAM = null, ultimaLectura = { txt: '', t: 0 };
+function formatos() {
+  const F = Html5QrcodeSupportedFormats;
+  return [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.EAN_8, F.UPC_A, F.DATA_MATRIX];
+}
+// Si se escanea una etiqueta de esta app (un link con ?id=), se usa solo el código.
+function limpiarLectura(txt) {
+  const m = String(txt).match(/[?&]id=([^&#]+)/);
+  // Code 39 a veces trae los asteriscos de inicio y fin: se sacan.
+  return (m ? decodeURIComponent(m[1]) : String(txt)).replace(/^\*+|\*+$/g, '').trim();
+}
+function alLeer(txt) {
+  const v = limpiarLectura(txt), ahora = Date.now();
+  if (v === ultimaLectura.txt && ahora - ultimaLectura.t < 3000) return;   // la cámara lee el mismo código muchas veces seguidas
+  ultimaLectura = { txt: v, t: ahora };
+  $('l-entrada').value = v;
+  registrarEscaneo(v);
+}
+async function alternarCamara() {
+  if (CAM) return detenerCamara();
+  if (typeof Html5Qrcode === 'undefined') { aviso('No se pudo cargar el lector de códigos. Revisa tu conexión.', true); return; }
+  $('l-camara').classList.remove('oculto');
+  CAM = new Html5Qrcode('lector', { formatsToSupport: formatos(), verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+  try {
+    await CAM.start({ facingMode: 'environment' }, { fps: 10, qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(h * 0.6) }) }, alLeer, () => {});
+    $('l-cam').textContent = '⏹ Apagar cámara';
+  } catch (e) {
+    CAM = null; $('l-camara').classList.add('oculto');
+    aviso('No se pudo abrir la cámara (' + (e && e.message ? e.message : e) + '). Revisa que el navegador tenga permiso de cámara para esta página.', true);
+  }
+}
+async function detenerCamara() {
+  if (!CAM) return;
+  try { await CAM.stop(); CAM.clear(); } catch (e) {}
+  CAM = null; $('l-camara').classList.add('oculto'); $('l-cam').textContent = '📷 Usar cámara';
+}
+/* ================= ETIQUETA ================= */
+function verEtiqueta() {
+  $('e1').textContent = actual['Código'];
+  $('e2').textContent = actual['Piso'] + ' · ' + actual['Unidad'];
+  $('qr').innerHTML = '';
+  new QRCode($('qr'), { text: location.origin + location.pathname + '?id=' + encodeURIComponent(actual['Código']), width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M });
+  mostrar('etiqueta');
+}
+
+/* ================= SESIÓN ================= */
+function olvidarSesion() { SESION = null; try { localStorage.removeItem('inv_sesion'); } catch (e) {} }
+function mostrarLogin() {
+  if (CAM) detenerCamara();
+  $('app').classList.add('oculto'); $('nav').classList.add('oculto'); $('h-salir').classList.add('oculto');
+  $('h-correo').textContent = ''; $('v-login').classList.remove('oculto');
+}
+function mostrarApp() {
+  $('v-login').classList.add('oculto'); $('app').classList.remove('oculto'); $('nav').classList.remove('oculto');
+  $('h-salir').classList.remove('oculto'); $('h-correo').textContent = SESION.correo;
+}
+async function pedirCodigo() {
+  const correo = $('lg-correo').value.trim().toLowerCase();
+  if (!correo) return $('lg-correo').focus();
+  const b = $('lg-pedir'); b.disabled = true; b.textContent = 'Enviando...';
+  try {
+    await llamar('pedirCodigo', correo);
+    $('lg-paso2').classList.remove('oculto'); $('lg-codigo').focus();
+    aviso('Te enviamos un código a ' + correo);
+  } catch (e) {} finally { b.disabled = false; b.textContent = 'Enviarme el código'; }
+}
+async function entrar() {
+  const correo = $('lg-correo').value.trim().toLowerCase();
+  const b = $('lg-entrar'); b.disabled = true;
+  try {
+    const r = await llamar('entrarConCodigo', correo, $('lg-codigo').value.trim());
+    SESION = { token: r.token, correo: correo };
+    try { localStorage.setItem('inv_sesion', JSON.stringify(SESION)); } catch (e) {}
+    aviso('¡Listo! Sesión iniciada'); mostrarApp(); iniciar();
+  } catch (e) {} finally { b.disabled = false; }
+}
+async function salir() {
+  try { await llamar('cerrarSesion', SESION && SESION.token); } catch (e) {}
+  olvidarSesion(); location.href = location.pathname;
+}
+
+/* ================= ARRANQUE ================= */
+{
+  $('lg-pedir').addEventListener('click', pedirCodigo);
+  $('lg-entrar').addEventListener('click', entrar);
+  $('lg-codigo').addEventListener('keydown', e => { if (e.key === 'Enter') entrar(); });
+  $('lg-correo').addEventListener('keydown', e => { if (e.key === 'Enter') pedirCodigo(); });
+  $('f-guardar').addEventListener('click', guardarEdicion);
+  $('n-area').addEventListener('change', () => opciones($('n-tipo'), optTipos($('n-area').value)));
+  $('l-guardar').addEventListener('click', () => registrarEscaneo($('l-entrada').value));
+  $('l-entrada').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); registrarEscaneo($('l-entrada').value); } });
+  if (API_URL.indexOf('PEGA_AQUI') === 0) {
+    $('v-login').classList.remove('oculto');
+    $('v-login').innerHTML = '<div class="tarjeta"><b class="mal">Falta configurar</b><p class="gris">Pega la URL de la API de Apps Script en API_URL, al inicio del código de esta página.</p></div>';
+  } else if (SESION && SESION.token) { mostrarApp(); iniciar(); }
+  else mostrarLogin();
+}
+function arrancarCon(ini, todo) {
+  if (ini) INI = ini;
+  TODO = Array.isArray(todo) ? todo : TODO;
+  if (!LISTO) { prepararFiltros(); LISTO = true; }
+  filtrar();
+  if (ID_INICIAL) abrir(ID_INICIAL);
+}
+function iniciar() {
+  const D = DATOS_INICIALES || {};
+  // Camino rápido: los datos ya vienen dentro de la página.
+  if (Array.isArray(D.todo)) {
+    arrancarCon(D.ini, D.todo);
+    if (D.errores && D.errores.length) aviso('Aviso: ' + D.errores.join(' | '), true);
+    return;
+  }
+  $('lista').innerHTML = '<p class="gris">Cargando...</p>';
+  llamar('obtenerInicio')
+    .catch(() => null)                       // sin catálogo igual se puede mostrar el inventario
+    .then(ini => { if (ini) INI = ini; return llamar('listarTodo', false); })
+    .then(txt => {
+      const datos = typeof txt === 'string' ? JSON.parse(txt) : txt;
+      if (!Array.isArray(datos)) throw new Error('La respuesta llegó vacía.' + (D.errores ? ' ' + D.errores.join(' | ') : ''));
+      arrancarCon(INI, datos);
+    })
+    .catch(e => errorCarga((e && e.message ? e.message : String(e)) + (D.errores ? ' | ' + D.errores.join(' | ') : '')));
+}
+</script>
+</body>
+</html>
