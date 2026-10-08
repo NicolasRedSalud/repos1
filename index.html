@@ -36,13 +36,12 @@
   #aviso { position:fixed; top:12px; left:16px; right:16px; padding:12px; border-radius:8px; color:#fff; display:none; z-index:20; text-align:center; }
   .oculto { display:none !important; }
   /* Inicio */
-  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
-  @media (min-width:560px) { .kpis { grid-template-columns:repeat(6,1fr); } }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(88px,1fr)); gap:6px; margin-top:8px; }
   .kpi { background:#fff; border:1px solid var(--borde); border-radius:8px; padding:8px 4px; text-align:center; cursor:pointer; }
   .kpi b { display:block; font-size:20px; } .kpi span { font-size:11px; color:#555; }
   .kpi.sel { border-color:var(--azul); box-shadow:0 0 0 2px var(--azul) inset; }
   .barra { display:flex; align-items:center; gap:8px; font-size:13px; margin:3px 0; cursor:pointer; }
-  .barra .et { width:44px; color:#555; } .barra .fondo { flex:1; background:#e8f1f5; border-radius:4px; height:14px; }
+  .barra .et { width:44px; color:#555; } .barra .et.ancha { width:120px; } .barra .fondo { flex:1; background:#e8f1f5; border-radius:4px; height:14px; }
   .barra .lleno { background:var(--azul); height:14px; border-radius:4px; } .barra .n { width:34px; text-align:right; }
   .filtros-activos { font-size:13px; color:var(--azul); margin-top:6px; }
   /* Modal */
@@ -99,6 +98,7 @@
         <div><label>Unidad</label><select id="fi-unidad"></select></div>
         <div><label>Estado</label><select id="fi-estado"></select></div>
       </div>
+      <div class="solo-ubic"><label>Dónde está</label><select id="fi-ubic"></select></div>
       <label>Texto (marca, modelo, serie, ubicación...)</label>
       <input id="fi-texto" type="search" autocomplete="off">
       <div class="fila" style="align-items:center;margin-top:8px">
@@ -109,6 +109,7 @@
 
     <div class="tarjeta">
       <div class="fila"><div><b>Por piso</b><div id="g-piso"></div></div><div><b>Por área</b><div id="g-area"></div></div></div>
+      <div class="solo-ubic" style="margin-top:10px"><b>Dónde está</b><div id="g-ubic"></div></div>
     </div>
 
     <div id="lista"></div>
@@ -132,7 +133,10 @@
     </div>
     <label>Ubicación exacta</label><input id="f-Ubicación exacta" placeholder="Ej: Box 12, mesón 2">
     <label>Asignado a</label><input id="f-Asignado a" placeholder="Persona o servicio (opcional)">
-    <label>Estado</label><select id="f-Estado"></select>
+    <div class="fila">
+      <div><label>Estado</label><select id="f-Estado"></select></div>
+      <div class="solo-ubic"><label>Dónde está</label><select id="f-Ubicación"></select></div>
+    </div>
     <label>Observaciones</label><textarea id="f-Observaciones" rows="2"></textarea>
     <button class="btn" id="f-guardar">Guardar cambios</button>
     <button class="btn sec" onclick="abrir(actual['Código'])">Cancelar</button>
@@ -189,6 +193,7 @@
         <div><label>Unidad</label><select id="n-Unidad"></select></div>
         <div><label>Estado</label><select id="n-Estado"></select></div>
       </div>
+      <div class="solo-ubic"><label>Dónde está</label><select id="n-Ubicación"></select></div>
       <label>Asignado a</label><input id="n-Asignado a">
       <label>Observaciones</label><input id="n-Observaciones">
       <button class="btn" onclick="comenzarLote()">Comenzar registro</button>
@@ -208,13 +213,16 @@
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 /* ===== CONFIGURACIÓN: pega aquí la URL de la implementación "API" de Apps Script (termina en /exec) ===== */
-const API_URL = 'https://script.google.com/a/macros/redsalud.cl/s/AKfycbwL5r0pljkr8PXek3c6TMu1XEiMA4Kzaj8zq15OOglun6qCIQUZWz8yHq2jrRgPxLT6/exec';
+const API_URL = 'https://script.google.com/a/macros/redsalud.cl/s/AKfycbylNy9G9vCNuunOLmuJpjVRj4M4Ee83FXyigB_nxXxJIu6gNchmVT0UqsZu1mgW9-fW/exec';
 
 const ID_INICIAL = new URLSearchParams(location.search).get('id') || '';
 const DATOS_INICIALES = null;
 let SESION = null;
 try { SESION = JSON.parse(localStorage.getItem('inv_sesion') || 'null'); } catch (e) {}
-const EDITABLES = ['Marca','Modelo','N° serie','Piso','Unidad','Ubicación exacta','Asignado a','Estado','Observaciones'];
+const EDITABLES_BASE = ['Marca','Modelo','N° serie','Piso','Unidad','Ubicación exacta','Asignado a','Estado','Ubicación','Observaciones'];
+// "Ubicación" (en piso, bodega, sala TI...) solo se usa si la hoja Inventario tiene esa columna.
+const tieneUbic = () => !!(INI && INI.tieneUbicacion) || TODO.some(o => 'Ubicación' in o);
+const editables = () => EDITABLES_BASE.filter(n => n !== 'Ubicación' || tieneUbic());
 const PAGINA = 50;
 let INI = null, LISTO = false, TODO = [], FILTRADOS = [], mostrados = 0, actual = null, LOTE = null;
 
@@ -236,7 +244,8 @@ async function llamar(fn, ...args) {
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: fn, args: args, token: SESION && SESION.token }) });
     r = await resp.json();
   } catch (e) {
-    const err = new Error('No hay conexión con Google (' + e.message + '). Revisa internet y la URL de la API.');
+    const err = new Error('No hay conexión con Google (' + e.message + '). Revisa internet, que API_URL termine en /exec ' +
+      'y que la implementación de Apps Script sea "Ejecutar como: Yo" y "Acceso: Cualquier usuario".');
     aviso(err.message, true); throw err;
   }
   if (r.sesion === false) { olvidarSesion(); mostrarLogin(); }
@@ -255,8 +264,15 @@ function opciones(sel, lista, valor, todos) {
 }
 // Catálogo de siglas. Si por algún motivo no llegó desde Google, se arma con los datos del inventario
 // para que la pantalla funcione igual.
-const ESTADOS_BASE = ['Operativo', 'No operativo', 'En reparación', 'En bodega', 'De baja'];
-const PISOS_BASE = ['S1', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
+const ESTADOS_BASE = ['Operativo', 'En reparación', 'No operativo', 'De baja'];
+const UBIC_BASE = ['En piso', 'En bodega', 'En sala TI', 'En servicio técnico'];
+const PISOS_BASE = ['S2', 'S1', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
+// Lista de la planilla + la básica + lo que ya esté escrito en el inventario (para que nada quede sin contar).
+function juntar(deHoja, base, campo) {
+  const orden = (deHoja && deHoja.length) ? deHoja : base;
+  const todos = [...new Set([...orden, ...base, ...TODO.map(o => o[campo]).filter(Boolean)])];
+  return todos.sort((x, y) => (orden.indexOf(x) + 1 || 99) - (orden.indexOf(y) + 1 || 99));
+}
 function CAT() {
   const i = INI || {};
   const unicos = (campo) => [...new Set(TODO.map(o => o[campo]).filter(Boolean))];
@@ -267,18 +283,19 @@ function CAT() {
     areas: (i.areas && i.areas.length) ? i.areas : unicos('Área').map(a => ({ sigla: a, nombre: a })),
     tipos: (i.tipos && i.tipos.length) ? i.tipos : tiposDatos,
     unidades: (i.unidades && i.unidades.length) ? i.unidades : unicos('Unidad').map(u => ({ sigla: u, nombre: u })),
-    pisos: (i.pisos && i.pisos.length) ? i.pisos : PISOS_BASE,
-    // Los estados de la hoja Listas, más los básicos que falten (así "No operativo" aparece siempre).
-    estados: [...new Set([...(i.estados || []), ...ESTADOS_BASE])]
-      .sort((x, y) => (ESTADOS_BASE.indexOf(x) + 1 || 99) - (ESTADOS_BASE.indexOf(y) + 1 || 99)),
+    pisos: juntar(i.pisos, PISOS_BASE, 'Piso'),
+    estados: juntar(i.estados, ESTADOS_BASE, 'Estado'),
+    ubicaciones: juntar(i.ubicaciones, UBIC_BASE, 'Ubicación'),
     url: i.url || '',
   };
 }
 const optAreas = () => CAT().areas.map(a => ({ v: a.sigla, t: a.sigla + ' · ' + a.nombre }));
 const optTipos = area => CAT().tipos.filter(t => !area || t.area === area).map(t => ({ v: t.sigla, t: t.sigla + ' · ' + t.nombre }));
-const optPisos = () => CAT().pisos.map(p => ({ v: p, t: p === 'S1' ? 'S1 (subt.)' : p }));
+const optPisos = () => CAT().pisos.map(p => ({ v: p, t: /^S\d$/.test(p) ? p + ' (subt.)' : p }));
 const optUnidades = () => CAT().unidades.map(u => ({ v: u.sigla, t: u.sigla + ' · ' + u.nombre }));
 const optEstados = () => CAT().estados.map(e => ({ v: e, t: e }));
+const optUbic = () => CAT().ubicaciones.map(e => ({ v: e, t: e }));
+function mostrarUbic() { document.querySelectorAll('.solo-ubic').forEach(el => el.classList.toggle('oculto', !tieneUbic())); }
 
 /* ================= INICIO ================= */
 // forzar = true lee la planilla directo (botón Actualizar); si no, Google entrega la copia en caché.
@@ -313,22 +330,24 @@ function prepararFiltros() {
   opciones($('fi-piso'), optPisos(), '', 'Todos');
   opciones($('fi-unidad'), optUnidades(), '', 'Todas');
   opciones($('fi-estado'), optEstados(), '', 'Todos');
+  opciones($('fi-ubic'), optUbic(), '', 'Todas');
+  mostrarUbic();
   $('fi-area').addEventListener('change', () => { opciones($('fi-tipo'), optTipos($('fi-area').value), '', 'Todos'); filtrar(); });
-  ['fi-tipo','fi-piso','fi-unidad','fi-estado'].forEach(id => $(id).addEventListener('change', filtrar));
+  ['fi-tipo','fi-piso','fi-unidad','fi-estado','fi-ubic'].forEach(id => $(id).addEventListener('change', filtrar));
   let t; $('fi-texto').addEventListener('input', () => { clearTimeout(t); t = setTimeout(filtrar, 250); });
 }
 function limpiarFiltros() {
-  ['fi-area','fi-piso','fi-unidad','fi-estado','fi-texto'].forEach(id => $(id).value = '');
+  ['fi-area','fi-piso','fi-unidad','fi-estado','fi-ubic','fi-texto'].forEach(id => $(id).value = '');
   opciones($('fi-tipo'), optTipos(''), '', 'Todos');
   filtrar();
 }
 function filtroPor(id, valor) {  // tocar un KPI o una barra aplica ese filtro
-  if (id === 'fi-estado' || id === 'fi-piso') $(id).value = $(id).value === valor ? '' : valor;
+  if (id === 'fi-estado' || id === 'fi-piso' || id === 'fi-ubic') $(id).value = $(id).value === valor ? '' : valor;
   if (id === 'fi-area') { $(id).value = $(id).value === valor ? '' : valor; opciones($('fi-tipo'), optTipos($(id).value), '', 'Todos'); }
   filtrar();
 }
 function filtrar() {
-  const f = { 'Área': $('fi-area').value, 'Sigla tipo': $('fi-tipo').value, 'Piso': $('fi-piso').value, 'Unidad': $('fi-unidad').value };
+  const f = { 'Área': $('fi-area').value, 'Sigla tipo': $('fi-tipo').value, 'Piso': $('fi-piso').value, 'Unidad': $('fi-unidad').value, 'Ubicación': $('fi-ubic').value };
   const estado = $('fi-estado').value;
   const palabras = $('fi-texto').value.toLowerCase().split(/\s+/).filter(String);
   // Para los KPI se aplican todos los filtros menos el de estado (así se ve el reparto por estado).
@@ -344,16 +363,17 @@ function filtrar() {
 
   barras('g-piso', cuenta(FILTRADOS, 'Piso'), CAT().pisos, 'fi-piso');
   barras('g-area', cuenta(FILTRADOS, 'Área'), CAT().areas.map(a => a.sigla), 'fi-area');
+  if (tieneUbic()) barras('g-ubic', cuenta(FILTRADOS, 'Ubicación'), CAT().ubicaciones, 'fi-ubic', true);
 
-  const activos = [['Área', f['Área']], ['Tipo', f['Sigla tipo']], ['Piso', f['Piso']], ['Unidad', f['Unidad']], ['Estado', estado], ['Texto', $('fi-texto').value]]
+  const activos = [['Área', f['Área']], ['Tipo', f['Sigla tipo']], ['Piso', f['Piso']], ['Unidad', f['Unidad']], ['Estado', estado], ['Dónde está', f['Ubicación']], ['Texto', $('fi-texto').value]]
     .filter(x => x[1]).map(x => x[0] + ': ' + x[1]);
   $('fi-resumen').textContent = (activos.length ? activos.join(' · ') + ' → ' : '') + FILTRADOS.length + ' equipos';
   pintarLista(false);
 }
-function barras(id, conteo, orden, filtro) {
+function barras(id, conteo, orden, filtro, ancha) {
   const max = Math.max(1, ...Object.values(conteo));
   $(id).innerHTML = orden.filter(k => conteo[k]).map(k => `
-    <div class="barra" onclick="filtroPor('${filtro}','${esc(k)}')"><span class="et">${esc(k)}</span>
+    <div class="barra" onclick="filtroPor('${filtro}','${esc(k)}')"><span class="et${ancha ? ' ancha' : ''}">${esc(k)}</span>
       <span class="fondo"><span class="lleno" style="display:block;width:${Math.round(conteo[k] / max * 100)}%"></span></span>
       <span class="n">${conteo[k]}</span></div>`).join('') || '<p class="gris">—</p>';
 }
@@ -366,7 +386,7 @@ function pintarLista(mas) {
 }
 function tarjetaEquipo(o) {
   return `<div class="tarjeta item" onclick="abrir('${esc(o['Código'])}')">
-    <span class="codigo">${esc(o['Código'])}</span><span class="chip ${claseEstado(o['Estado'])}">${esc(o['Estado'])}</span><br>
+    <span class="codigo">${esc(o['Código'])}</span><span class="chip ${claseEstado(o['Estado'])}">${esc(o['Estado'])}</span>${o['Ubicación'] ? '<span class="chip">' + esc(o['Ubicación']) + '</span>' : ''}<br>
     ${esc(o['Descripción tipo'])} ${esc(o['Marca'])} ${esc(o['Modelo'])}<br>
     <span class="gris">${esc(o['Piso'])} · ${esc(o['Unidad'])} · ${esc(o['Ubicación exacta'])}</span></div>`;
 }
@@ -379,11 +399,12 @@ async function abrir(codigo) {
 }
 function pintarDetalle() {
   const o = actual, baja = o['Estado'] === 'De baja';
-  const campos = ['Descripción tipo','Marca','Modelo','N° serie','Piso','Unidad','Ubicación exacta','Asignado a','Estado','Fecha última revisión','Revisado por','Observaciones'];
+  const campos = ['Descripción tipo','Marca','Modelo','N° serie','Piso','Unidad','Ubicación exacta','Asignado a','Estado']
+    .concat(tieneUbic() ? ['Ubicación'] : [], ['Fecha última revisión','Revisado por','Observaciones']);
   $('v-detalle').innerHTML = `
     <div class="tarjeta">
       <span class="codigo" style="font-size:22px">${esc(o['Código'])}</span>
-      <dl>${campos.map(c => `<dt>${esc(c)}</dt><dd>${esc(o[c]) || '<span class="gris">—</span>'}</dd>`).join('')}</dl>
+      <dl>${campos.map(c => `<dt>${esc(c === 'Ubicación' ? 'Dónde está' : c)}</dt><dd>${esc(o[c]) || '<span class="gris">—</span>'}</dd>`).join('')}</dl>
     </div>
     ${baja ? '' : '<button class="btn" onclick="revisado()">✓ Lo vi aquí (marcar revisado)</button>'}
     <button class="btn sec" onclick="editar()">Editar / mover</button>
@@ -409,11 +430,12 @@ function editar() {
   opciones($('f-Piso'), optPisos(), actual['Piso']);
   opciones($('f-Unidad'), optUnidades(), actual['Unidad']);
   opciones($('f-Estado'), optEstados(), actual['Estado']);
-  EDITABLES.forEach(n => { const el = $('f-' + n); if (el.tagName !== 'SELECT') el.value = actual[n] || ''; });
+  opciones($('f-Ubicación'), optUbic(), actual['Ubicación'] || '', '—');
+  editables().forEach(n => { const el = $('f-' + n); if (el.tagName !== 'SELECT') el.value = actual[n] || ''; });
   mostrar('form');
 }
 async function guardarEdicion() {
-  const datos = {}; EDITABLES.forEach(n => datos[n] = $('f-' + n).value);
+  const datos = {}; editables().forEach(n => datos[n] = $('f-' + n).value);
   const b = $('f-guardar'); b.disabled = true;
   try {
     actual = await llamar('actualizarEquipo', actual['Código'], datos);
@@ -429,6 +451,7 @@ function abrirNuevo() {
   opciones($('n-Piso'), optPisos(), '', '—');
   opciones($('n-Unidad'), optUnidades(), '', '—');
   opciones($('n-Estado'), optEstados(), 'Operativo');
+  opciones($('n-Ubicación'), optUbic(), '', '—');
   ['n-cantidad','n-Marca','n-Modelo','n-Asignado a','n-Observaciones'].forEach(id => $(id).value = '');
   $('m-nuevo').classList.remove('oculto');
 }
@@ -437,7 +460,9 @@ function comenzarLote() {
   const area = $('n-area').value, tipo = $('n-tipo').value;
   const t = CAT().tipos.find(x => x.area === area && x.sigla === tipo);
   const comunes = {};
-  ['Marca','Modelo','Piso','Unidad','Estado','Asignado a','Observaciones'].forEach(n => { const v = $('n-' + n).value.trim(); if (v) comunes[n] = v; });
+  ['Marca','Modelo','Piso','Unidad','Estado','Ubicación','Asignado a','Observaciones'].forEach(n => {
+    if (n === 'Ubicación' && !tieneUbic()) return;
+    const v = $('n-' + n).value.trim(); if (v) comunes[n] = v; });
   const cant = parseInt($('n-cantidad').value, 10);
   LOTE = { area, tipo, nombre: t ? t.nombre : tipo, cantidad: cant > 0 ? cant : 0, comunes, hechos: [], vistos: new Set(), ocupado: false };
   cerrarNuevo();
